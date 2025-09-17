@@ -15,10 +15,10 @@ st.set_page_config(
 )
 
 # Inicializar o gerenciador de dados
-@st.cache_resource
 def init_data_manager():
     return DataManager()
 
+# Criar instância sem cache para evitar problemas de persistência
 data_manager = init_data_manager()
 
 # Título principal
@@ -62,6 +62,22 @@ if page == "🏠 Dashboard Hoje":
                 st.metric("✅ Finalizados Hoje", int(dados_hoje['tickets_finalizados']))
             with col_c:
                 st.metric("⏳ Em Andamento", int(dados_hoje['tickets_andamento']))
+            
+            # Mostrar links dos chamados se existirem
+            if 'links_chamados' in dados_hoje and dados_hoje['links_chamados'] and str(dados_hoje['links_chamados']).strip():
+                st.subheader("🔗 Links dos Chamados de Hoje:")
+                links_texto = str(dados_hoje['links_chamados'])
+                # Detectar se são links separados por linha ou vírgula
+                if '\n' in links_texto:
+                    links = [link.strip() for link in links_texto.split('\n') if link.strip()]
+                else:
+                    links = [link.strip() for link in links_texto.split(',') if link.strip()]
+                
+                for i, link in enumerate(links, 1):
+                    if link.startswith('http'):
+                        st.markdown(f"**{i}.** [Chamado {i}]({link})")
+                    else:
+                        st.markdown(f"**{i}.** {link}")
         else:
             st.warning(f"⚠️ Ainda não há dados registrados para hoje ({hoje.strftime('%d/%m/%Y')})")
             st.info("👇 Use o formulário abaixo para registrar os dados do dia")
@@ -79,6 +95,7 @@ if page == "🏠 Dashboard Hoje":
     valor_iniciados = int(dados_hoje['tickets_iniciados']) if dados_hoje is not None else 0
     valor_finalizados = int(dados_hoje['tickets_finalizados']) if dados_hoje is not None else 0
     valor_andamento = int(dados_hoje['tickets_andamento']) if dados_hoje is not None else 0
+    valor_links = str(dados_hoje['links_chamados']) if dados_hoje is not None and 'links_chamados' in dados_hoje else ""
     
     with st.form("dados_hoje"):
         col1, col2, col3 = st.columns(3)
@@ -107,6 +124,15 @@ if page == "🏠 Dashboard Hoje":
                 help="Número total de tickets em andamento hoje"
             )
         
+        # Campo para links dos chamados
+        links_chamados = st.text_area(
+            "🔗 Links dos Chamados Abertos:",
+            value=valor_links,
+            height=100,
+            help="Cole aqui os links dos chamados abertos hoje (um por linha ou separados por vírgula)",
+            placeholder="Exemplo:\nhttps://link1.com\nhttps://link2.com\nou\nlink1, link2, link3"
+        )
+        
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
             submitted = st.form_submit_button("💾 Salvar/Atualizar Dados", width='stretch')
@@ -116,7 +142,7 @@ if page == "🏠 Dashboard Hoje":
         
         if submitted:
             sucesso = data_manager.adicionar_registro(
-                hoje, tickets_iniciados, tickets_finalizados, tickets_andamento
+                hoje, tickets_iniciados, tickets_finalizados, tickets_andamento, links_chamados
             )
             
             if sucesso:
@@ -158,14 +184,27 @@ if page == "🏠 Dashboard Hoje":
         # Tabela dos últimos 7 dias
         df_display = ultimos_7_dias.copy()
         df_display['data'] = df_display['data'].dt.strftime('%d/%m/%Y')
+        
+        # Truncar links para exibição na tabela
+        if 'links_chamados' in df_display.columns:
+            df_display['links_resumo'] = df_display['links_chamados'].apply(
+                lambda x: (str(x)[:50] + "...") if x and len(str(x)) > 50 else str(x) if x else ""
+            )
+        
         df_display = df_display.rename(columns={
             'data': 'Data',
             'tickets_iniciados': 'Iniciados',
             'tickets_finalizados': 'Finalizados',
-            'tickets_andamento': 'Em Andamento'
+            'tickets_andamento': 'Em Andamento',
+            'links_resumo': 'Links (resumo)'
         })
         
-        st.dataframe(df_display, width='stretch', hide_index=True)
+        # Selecionar apenas as colunas que queremos mostrar
+        colunas_exibir = ['Data', 'Iniciados', 'Finalizados', 'Em Andamento']
+        if 'Links (resumo)' in df_display.columns:
+            colunas_exibir.append('Links (resumo)')
+        
+        st.dataframe(df_display[colunas_exibir], width='stretch', hide_index=True)
 
 elif page == "📊 Dashboard Geral":
     st.header("Dashboard Interativo")

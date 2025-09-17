@@ -21,7 +21,7 @@ class DataManager:
         if not os.path.exists(self.arquivo_excel):
             # Criar DataFrame vazio com as colunas necessárias
             df_inicial = pd.DataFrame(columns=[
-                'data', 'tickets_iniciados', 'tickets_finalizados', 'tickets_andamento'
+                'data', 'tickets_iniciados', 'tickets_finalizados', 'tickets_andamento', 'links_chamados'
             ])
             
             # Salvar no arquivo Excel
@@ -30,6 +30,16 @@ class DataManager:
                 print(f"Arquivo {self.arquivo_excel} criado com sucesso.")
             except Exception as e:
                 st.error(f"Erro ao criar arquivo Excel: {e}")
+        else:
+            # Verificar se a coluna links_chamados existe, se não, adicionar
+            try:
+                df = pd.read_excel(self.arquivo_excel)
+                if 'links_chamados' not in df.columns:
+                    df['links_chamados'] = ''
+                    df.to_excel(self.arquivo_excel, index=False)
+                    print("Coluna 'links_chamados' adicionada ao arquivo existente.")
+            except Exception as e:
+                print(f"Erro ao verificar/atualizar arquivo Excel: {e}")
     
     def carregar_dados(self):
         """
@@ -48,10 +58,14 @@ class DataManager:
                     # Ordenar por data
                     df = df.sort_values('data').reset_index(drop=True)
                 
+                # Garantir que a coluna links_chamados existe
+                if 'links_chamados' not in df.columns:
+                    df['links_chamados'] = ''
+                
                 return df
             else:
                 return pd.DataFrame(columns=[
-                    'data', 'tickets_iniciados', 'tickets_finalizados', 'tickets_andamento'
+                    'data', 'tickets_iniciados', 'tickets_finalizados', 'tickets_andamento', 'links_chamados'
                 ])
         except Exception as e:
             st.error(f"Erro ao carregar dados: {e}")
@@ -59,7 +73,7 @@ class DataManager:
                 'data', 'tickets_iniciados', 'tickets_finalizados', 'tickets_andamento'
             ])
     
-    def adicionar_registro(self, data_registro, tickets_iniciados, tickets_finalizados, tickets_andamento):
+    def adicionar_registro(self, data_registro, tickets_iniciados, tickets_finalizados, tickets_andamento, links_chamados=""):
         """
         Adiciona um novo registro de tickets.
         
@@ -68,6 +82,7 @@ class DataManager:
             tickets_iniciados (int): Número de tickets iniciados
             tickets_finalizados (int): Número de tickets finalizados
             tickets_andamento (int): Número de tickets em andamento
+            links_chamados (str): Links dos chamados abertos (opcional)
             
         Returns:
             bool: True se o registro foi adicionado com sucesso, False caso contrário
@@ -86,13 +101,15 @@ class DataManager:
                     df.loc[mask, 'tickets_iniciados'] = tickets_iniciados
                     df.loc[mask, 'tickets_finalizados'] = tickets_finalizados
                     df.loc[mask, 'tickets_andamento'] = tickets_andamento
+                    df.loc[mask, 'links_chamados'] = links_chamados
                 else:
                     # Adicionar novo registro
                     novo_registro = pd.DataFrame({
                         'data': [data_registro_str],
                         'tickets_iniciados': [tickets_iniciados],
                         'tickets_finalizados': [tickets_finalizados],
-                        'tickets_andamento': [tickets_andamento]
+                        'tickets_andamento': [tickets_andamento],
+                        'links_chamados': [links_chamados]
                     })
                     df = pd.concat([df, novo_registro], ignore_index=True)
             else:
@@ -101,14 +118,19 @@ class DataManager:
                     'data': [data_registro_str],
                     'tickets_iniciados': [tickets_iniciados],
                     'tickets_finalizados': [tickets_finalizados],
-                    'tickets_andamento': [tickets_andamento]
+                    'tickets_andamento': [tickets_andamento],
+                    'links_chamados': [links_chamados]
                 })
             
             # Ordenar por data
             df = df.sort_values('data').reset_index(drop=True)
             
-            # Salvar no arquivo Excel
+            # Salvar no arquivo Excel com flush para garantir escrita
             df.to_excel(self.arquivo_excel, index=False)
+            
+            # Força a escrita no disco
+            import time
+            time.sleep(0.1)  # Pequena pausa para garantir que a escrita seja concluída
             
             return True
             
